@@ -1,0 +1,38 @@
+const tracker = new Map();
+
+export function checkSpam({ userId, windowMs, maxMessages, cooldownMs }) {
+  const now = Date.now();
+  const current = tracker.get(userId) || { timestamps: [], blockedUntil: 0, warnedAt: 0 };
+
+  if (current.blockedUntil > now) {
+    return {
+      blocked: true,
+      shouldWarn: now - current.warnedAt > 15000,
+      retryAfterMs: current.blockedUntil - now
+    };
+  }
+
+  current.timestamps = current.timestamps.filter((ts) => now - ts <= windowMs);
+  current.timestamps.push(now);
+
+  if (current.timestamps.length > maxMessages) {
+    current.blockedUntil = now + cooldownMs;
+    current.timestamps = [];
+    tracker.set(userId, current);
+    return {
+      blocked: true,
+      shouldWarn: true,
+      retryAfterMs: cooldownMs
+    };
+  }
+
+  tracker.set(userId, current);
+  return { blocked: false, shouldWarn: false, retryAfterMs: 0 };
+}
+
+export function markWarned(userId) {
+  const current = tracker.get(userId);
+  if (!current) return;
+  current.warnedAt = Date.now();
+  tracker.set(userId, current);
+}
